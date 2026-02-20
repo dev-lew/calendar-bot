@@ -41,14 +41,14 @@ import os
 from datetime import time, datetime
 
 
-__all__ = ['Config', 'ConfigFile']
+__all__ = ["Config", "ConfigFile"]
 
-logger = logging.getLogger('conf')
+logger = logging.getLogger("conf")
 
-DEFAULT_FORMAT = '''{title}
+DEFAULT_FORMAT = """{title}
 {date:%A, %d %B %Y}{time:, %H:%M %Z}
 {location}
-{description}'''
+{description}"""
 
 DEFAULT_ADVANCE = [48, 24]
 
@@ -67,32 +67,33 @@ class Config:
         """
         config = ConfigParser()
         config.read(configfile)
-        self.vardir = config.get('bot', 'vardir')
+        self.vardir = config.get("bot", "vardir")
         """path to var directory, where current state is stored"""
-        self.token = config.get('bot', 'token')
+        self.token = config.get("bot", "token")
         """the bot token"""
-        self.interval = config.getint('bot', 'interval', fallback=3600)
+        self.interval = config.getint("bot", "interval", fallback=3600)
         """the interval to reread calendars, in seconds"""
-        self.bootstrap_retries = config.getint('bot', 'bootstrap_retries', fallback=0)
+        self.bootstrap_retries = config.getint("bot", "bootstrap_retries", fallback=0)
         """Whether the bootstrapping phase of the Updater will retry on failures on the Telegram server."""
-        self.errors_count_threshold = config.getint('bot', 'errors_count_threshold',
-                                                    fallback=DEFAULT_ERRORS_COUNT_THRESHOLD)
+        self.errors_count_threshold = config.getint(
+            "bot", "errors_count_threshold", fallback=DEFAULT_ERRORS_COUNT_THRESHOLD
+        )
         """Disable a calendar if it processing attempts failed with so many errors"""
 
-        self.poll_interval = config.getfloat('polling', 'poll_interval', fallback=0.0)
+        self.poll_interval = config.getfloat("polling", "poll_interval", fallback=0.0)
         """Time to wait between polling updates from Telegram"""
-        self.timeout = config.getfloat('polling', 'timeout', fallback=10.0)
+        self.timeout = config.getfloat("polling", "timeout", fallback=10.0)
         """Timeout in seconds for long polling"""
-        self.read_latency = config.getfloat('polling', 'read_latency', fallback=2.0)
+        self.read_latency = config.getfloat("polling", "read_latency", fallback=2.0)
         """Additional timeout in seconds to allow the response from Telegram servers."""
 
-        self.webhook = config.getboolean('webhook', 'webhook', fallback=False)
+        self.webhook = config.getboolean("webhook", "webhook", fallback=False)
         """use webhook or not"""
-        self.domain = config.get('webhook', 'domain', fallback=None)
+        self.domain = config.get("webhook", "domain", fallback=None)
         """public domain where the webhook of the bot is listening"""
-        self.listen = config.get('webhook', 'listen', fallback='[::1]')
+        self.listen = config.get("webhook", "listen", fallback="[::1]")
         """IP address to listen by webhook"""
-        self.port = config.getint('webhook', 'port', fallback=5000)
+        self.port = config.getint("webhook", "port", fallback=5000)
         """webhook port"""
 
     def user_calendars(self, user_id):
@@ -135,7 +136,7 @@ class Config:
         calendar_parser = CalendarsConfigFile(self.vardir, user_id).read_parser()
 
         for section in calendar_parser.sections():
-            if section != 'settings':
+            if section != "settings":
                 calendar = CalendarConfig.load(user_config, calendar_parser, section)
                 yield calendar
 
@@ -150,7 +151,7 @@ class Config:
         calendar_parser = CalendarsConfigFile(self.vardir, user_id).read_parser()
 
         if not calendar_parser.has_section(calendar_id):
-            raise KeyError('Calendar %s not found' % calendar_id)
+            raise KeyError("Calendar %s not found" % calendar_id)
 
         calendar = CalendarConfig.load(user_config, calendar_parser, calendar_id)
         return calendar
@@ -168,16 +169,16 @@ class Config:
         user_parser = UserConfigFile(self.vardir, user_id).read_parser()
         user = UserConfig.load(self, user_id, user_parser)
 
-        next_id = str(calendar_parser.getint('settings', 'last_id', fallback=0) + 1)
-        if not calendar_parser.has_section('settings'):
-            calendar_parser.add_section('settings')
-        calendar_parser.set('settings', 'last_id', next_id)
+        next_id = str(calendar_parser.getint("settings", "last_id", fallback=0) + 1)
+        if not calendar_parser.has_section("settings"):
+            calendar_parser.add_section("settings")
+        calendar_parser.set("settings", "last_id", next_id)
 
         calendar = CalendarConfig.new(user, next_id, url, channel_id)
         calendar_parser.add_section(next_id)
-        calendar_parser.set(next_id, 'url', url)
-        calendar_parser.set(next_id, 'channel_id', channel_id)
-        calendar_parser.set(next_id, 'verified', 'false')
+        calendar_parser.set(next_id, "url", url)
+        calendar_parser.set(next_id, "channel_id", channel_id)
+        calendar_parser.set(next_id, "verified", "false")
 
         calendar_config_file.write(calendar_parser)
 
@@ -195,7 +196,7 @@ class Config:
         calendar.url = url
         calendar.verified = False
         calendar.enabled = True
-        calendar.save()     # save and clear last error
+        calendar.save()  # save and clear last error
         return calendar
 
     def change_calendar_channel(self, user_id, calendar_id, channel_id):
@@ -210,7 +211,7 @@ class Config:
         calendar.channel_id = channel_id
         calendar.verified = False
         calendar.enabled = True
-        calendar.save()     # save and clear last error
+        calendar.save()  # save and clear last error
         return calendar
 
     def delete_calendar(self, user_id, calendar_id):
@@ -224,7 +225,7 @@ class Config:
         config_parser = config_file.read_parser()
 
         if not config_parser.has_section(calendar_id):
-            raise KeyError('%s not found' % calendar_id)
+            raise KeyError("%s not found" % calendar_id)
         config_parser.remove_section(calendar_id)
 
         config_file.write(config_parser)
@@ -240,9 +241,9 @@ class Config:
         config_file = CalendarsConfigFile(self.vardir, user_id)
         config_parser = config_file.read_parser()
         if not config_parser.has_section(calendar_id):
-            raise KeyError('%s not found' % calendar_id)
+            raise KeyError("%s not found" % calendar_id)
 
-        config_parser.set(calendar_id, 'enabled', str(enabled))
+        config_parser.set(calendar_id, "enabled", str(enabled))
 
         config_file.write(config_parser)
 
@@ -253,19 +254,21 @@ class UserConfig:
     """
 
     def __init__(self, **kwargs):
-        self.vardir = kwargs['vardir']
+        self.vardir = kwargs["vardir"]
         """Base var directory"""
-        self.id = kwargs['user_id']
+        self.id = kwargs["user_id"]
         """ID of the user"""
-        self.format = kwargs['format']
+        self.format = kwargs["format"]
         """Event message format for the user"""
-        self.language = kwargs['language']
+        self.language = kwargs["language"]
         """Language to format the event"""
-        self.advance = kwargs['advance']
+        self.advance = kwargs["advance"]
         """Array of hours for advance the calendar event"""
-        self.config_parser = kwargs.get('config_parser', None)
+        self.config_parser = kwargs.get("config_parser", None)
         """ConfigParser from which this object was loaded, None if this is new a config"""
-        self.errors_count_threshold = kwargs.get('errors_count_threshold', DEFAULT_ERRORS_COUNT_THRESHOLD)
+        self.errors_count_threshold = kwargs.get(
+            "errors_count_threshold", DEFAULT_ERRORS_COUNT_THRESHOLD
+        )
         """Disable a calendar if it processing attempts failed with so many errors"""
 
     @classmethod
@@ -282,7 +285,7 @@ class UserConfig:
             format=DEFAULT_FORMAT,
             language=None,
             advance=DEFAULT_ADVANCE,
-            errors_count_threshold=config.errors_count_threshold
+            errors_count_threshold=config.errors_count_threshold,
         )
 
     @classmethod
@@ -297,11 +300,17 @@ class UserConfig:
         return cls(
             vardir=config.vardir,
             user_id=user_id,
-            format=config_parser.get('settings', 'format', fallback=DEFAULT_FORMAT),
-            language=config_parser.get('settings', 'language', fallback=None),
+            format=config_parser.get("settings", "format", fallback=DEFAULT_FORMAT),
+            language=config_parser.get("settings", "language", fallback=None),
             advance=list(
-                map(int,
-                    config_parser.get('settings', 'advance', fallback=' '.join(map(str, DEFAULT_ADVANCE))).split())
+                map(
+                    int,
+                    config_parser.get(
+                        "settings",
+                        "advance",
+                        fallback=" ".join(map(str, DEFAULT_ADVANCE)),
+                    ).split(),
+                )
             ),
             config_parser=config_parser,
             errors_count_threshold=config.errors_count_threshold,
@@ -315,9 +324,9 @@ class UserConfig:
         """
         config_file = UserConfigFile(self.vardir, self.id)
         parser = self.config_parser or config_file.read_parser()
-        if not parser.has_section('settings'):
-            parser.add_section('settings')
-        parser.set('settings', 'format', format)
+        if not parser.has_section("settings"):
+            parser.add_section("settings")
+        parser.set("settings", "format", format)
         config_file.write(parser)
         self.format = format
 
@@ -329,9 +338,9 @@ class UserConfig:
         """
         config_file = UserConfigFile(self.vardir, self.id)
         parser = self.config_parser or config_file.read_parser()
-        if not parser.has_section('settings'):
-            parser.add_section('settings')
-        parser.set('settings', 'language', language)
+        if not parser.has_section("settings"):
+            parser.add_section("settings")
+        parser.set("settings", "language", language)
         config_file.write(parser)
         self.language = language
 
@@ -343,10 +352,10 @@ class UserConfig:
         """
         config_file = UserConfigFile(self.vardir, self.id)
         parser = self.config_parser or config_file.read_parser()
-        if not parser.has_section('settings'):
-            parser.add_section('settings')
+        if not parser.has_section("settings"):
+            parser.add_section("settings")
         int_hours = sorted(set(map(int, hours)), reverse=True)
-        parser.set('settings', 'advance', ' '.join(map(str, int_hours)))
+        parser.set("settings", "advance", " ".join(map(str, int_hours)))
         config_file.write(parser)
         self.advance = int_hours
 
@@ -357,39 +366,41 @@ class CalendarConfig:
     """
 
     def __init__(self, **kwargs):
-        self.vardir = kwargs['vardir']
+        self.vardir = kwargs["vardir"]
         """Base var directory"""
-        self.id = kwargs['cal_id']
+        self.id = kwargs["cal_id"]
         """Current calendar ID"""
-        self.user_id = kwargs['user_id']
+        self.user_id = kwargs["user_id"]
         """Chat ID of the user to whom this calendar belongs to"""
-        self.url = kwargs['url']
+        self.url = kwargs["url"]
         """Url of the ical file to download"""
-        self.name = kwargs['name']
+        self.name = kwargs["name"]
         """Human readable name of the calendar"""
-        self.channel_id = kwargs['channel_id']
+        self.channel_id = kwargs["channel_id"]
         """Channel where to broadcast calendar events"""
-        self.verified = kwargs['verified']
+        self.verified = kwargs["verified"]
         """Flag indicating should the calendar fetching errors be sent to user"""
-        self.enabled = kwargs['enabled']
+        self.enabled = kwargs["enabled"]
         """Flag calendar is enabled and should be processed"""
-        self.format = kwargs['format']
+        self.format = kwargs["format"]
         """Format string for the event"""
-        self.language = kwargs['language']
+        self.language = kwargs["language"]
         """Language for the event"""
-        self.advance = kwargs['advance']
+        self.advance = kwargs["advance"]
         """Array of the numbers: how many hours in advance notify about the event"""
         self.day_start = time(10, 0)
         """When the day starts if the event has no specified time"""
         self.events = {}
         """Dictionary of known configured events"""
-        self.last_process_at = kwargs.get('last_process_at')
+        self.last_process_at = kwargs.get("last_process_at")
         """Moment when the calendar was processed last time"""
-        self.last_process_error = kwargs.get('last_process_error')
+        self.last_process_error = kwargs.get("last_process_error")
         """Error message if last processing failed with an error"""
-        self.last_errors_count = kwargs.get('last_errors_count', 0)
+        self.last_errors_count = kwargs.get("last_errors_count", 0)
         """How many errors were observed during last calendar processing attempts"""
-        self.errors_count_threshold = kwargs.get('errors_count_threshold', DEFAULT_ERRORS_COUNT_THRESHOLD)
+        self.errors_count_threshold = kwargs.get(
+            "errors_count_threshold", DEFAULT_ERRORS_COUNT_THRESHOLD
+        )
 
     @classmethod
     def new(cls, user_config, cal_id, url, channel_id):
@@ -426,8 +437,8 @@ class CalendarConfig:
         :return: CalendarConfig instance
         """
         section = cal_id
-        verified = config_parser.getboolean(section, 'verified', fallback=False)
-        enabled = config_parser.getboolean(section, 'enabled', fallback=True)
+        verified = config_parser.getboolean(section, "verified", fallback=False)
+        enabled = config_parser.getboolean(section, "enabled", fallback=True)
         return cls(
             vardir=user_config.vardir,
             user_id=user_config.id,
@@ -435,15 +446,23 @@ class CalendarConfig:
             language=user_config.language,
             advance=user_config.advance,
             cal_id=cal_id,
-            url=config_parser.get(section, 'url'),
-            name=config_parser.get(section, 'name', fallback=('Unknown' if verified else 'Unverified')),
-            channel_id=config_parser.get(section, 'channel_id'),
+            url=config_parser.get(section, "url"),
+            name=config_parser.get(
+                section, "name", fallback=("Unknown" if verified else "Unverified")
+            ),
+            channel_id=config_parser.get(section, "channel_id"),
             verified=verified,
             enabled=enabled,
-            last_process_at=config_parser.get(section, 'last_process_at', fallback=None),
-            last_process_error=config_parser.get(section, 'last_process_error', fallback=None),
-            last_errors_count=config_parser.getint(section, 'last_errors_count', fallback=0),
-            errors_count_threshold=user_config.errors_count_threshold
+            last_process_at=config_parser.get(
+                section, "last_process_at", fallback=None
+            ),
+            last_process_error=config_parser.get(
+                section, "last_process_error", fallback=None
+            ),
+            last_errors_count=config_parser.getint(
+                section, "last_errors_count", fallback=0
+            ),
+            errors_count_threshold=user_config.errors_count_threshold,
         )
 
     def save(self, exception=None):
@@ -457,11 +476,11 @@ class CalendarConfig:
         config_parser = config_file.read_parser()
         self._create_section(config_parser)
 
-        config_parser.set(self.id, 'url', self.url)
-        config_parser.set(self.id, 'name', self.name)
-        config_parser.set(self.id, 'channel_id', self.channel_id)
-        config_parser.set(self.id, 'verified', str(self.verified))
-        config_parser.set(self.id, 'enabled', str(self.enabled))
+        config_parser.set(self.id, "url", self.url)
+        config_parser.set(self.id, "name", self.name)
+        config_parser.set(self.id, "channel_id", self.channel_id)
+        config_parser.set(self.id, "verified", str(self.verified))
+        config_parser.set(self.id, "enabled", str(self.enabled))
 
         self._update_last_process(config_parser, exception)
         config_file.write(config_parser)
@@ -471,11 +490,15 @@ class CalendarConfig:
         Loads the calendar events from the events.cfg file.
         :return: None
         """
-        config_parser = EventsConfigFile(self.vardir, self.user_id, self.id).read_parser()
+        config_parser = EventsConfigFile(
+            self.vardir, self.user_id, self.id
+        ).read_parser()
 
         for event_id in config_parser.sections():
             event = EventConfig(self, event_id)
-            event.last_notified = config_parser.getint(event_id, 'last_notified', fallback=None)
+            event.last_notified = config_parser.getint(
+                event_id, "last_notified", fallback=None
+            )
             self.events[event_id] = event
 
     def event(self, id):
@@ -513,9 +536,9 @@ class CalendarConfig:
         self._create_section(config_parser)
 
         self.verified = True
-        config_parser.set(self.id, 'verified', 'true')
+        config_parser.set(self.id, "verified", "true")
         self.name = calendar.name
-        config_parser.set(self.id, 'name', calendar.name)
+        config_parser.set(self.id, "name", calendar.name)
 
         self._update_last_process(config_parser)
 
@@ -532,7 +555,7 @@ class CalendarConfig:
         for event in self.events.values():
             config_parser.add_section(event.id)
             if type(event.last_notified) is int:
-                config_parser.set(event.id, 'last_notified', str(event.last_notified))
+                config_parser.set(event.id, "last_notified", str(event.last_notified))
 
         config_file.write(config_parser)
 
@@ -553,25 +576,29 @@ class CalendarConfig:
     def _create_section(self, config_parser):
         if not config_parser.has_section(self.id):
             config_parser.add_section(self.id)
-            config_parser.set(self.id, 'url', self.url)
-            config_parser.set(self.id, 'channel_id', self.channel_id)
+            config_parser.set(self.id, "url", self.url)
+            config_parser.set(self.id, "channel_id", self.channel_id)
 
     def _update_last_process(self, config_parser, error=None):
         self.last_process_at = datetime.utcnow().isoformat()
-        config_parser.set(self.id, 'last_process_at', self.last_process_at)
+        config_parser.set(self.id, "last_process_at", self.last_process_at)
         self.last_process_error = error
-        config_parser.set(self.id, 'last_process_error', str(self.last_process_error))
+        config_parser.set(self.id, "last_process_error", str(self.last_process_error))
         if error is None:
             self.last_errors_count = 0
-            config_parser.set(self.id, 'last_errors_count', str(self.last_errors_count))
+            config_parser.set(self.id, "last_errors_count", str(self.last_errors_count))
         else:
             self.last_errors_count += 1
-            config_parser.set(self.id, 'last_errors_count', str(self.last_errors_count))
+            config_parser.set(self.id, "last_errors_count", str(self.last_errors_count))
             if self.last_errors_count >= self.errors_count_threshold:
-                logger.warning('Disabling calendar %s of user %s due %s errors count',
-                               self.id, self.user_id, self.last_errors_count)
+                logger.warning(
+                    "Disabling calendar %s of user %s due %s errors count",
+                    self.id,
+                    self.user_id,
+                    self.last_errors_count,
+                )
                 self.enabled = False
-                config_parser.set(self.id, 'enabled', str(self.enabled))
+                config_parser.set(self.id, "enabled", str(self.enabled))
 
 
 class EventConfig:
@@ -608,7 +635,7 @@ class ConfigFile:
         :param parser: ConfigParser to be read from the file
         :return: None
         """
-        parser.read(self.path, encoding='UTF-8')
+        parser.read(self.path, encoding="UTF-8")
 
     def read_parser(self):
         """
@@ -626,7 +653,7 @@ class ConfigFile:
         :return: None
         """
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        with open(self.path, 'wt', encoding='UTF-8') as file:
+        with open(self.path, "wt", encoding="UTF-8") as file:
             parser.write(file)
 
 
@@ -641,7 +668,7 @@ class UserConfigFile(ConfigFile):
         :param vardir: basic var dir
         :param user_id: user ID as string
         """
-        super().__init__(os.path.join(vardir, user_id, 'settings.cfg'))
+        super().__init__(os.path.join(vardir, user_id, "settings.cfg"))
 
 
 class CalendarsConfigFile(ConfigFile):
@@ -655,7 +682,7 @@ class CalendarsConfigFile(ConfigFile):
         :param vardir: basic var dir
         :param user_id: user ID as string
         """
-        super().__init__(os.path.join(vardir, user_id, 'calendars.cfg'))
+        super().__init__(os.path.join(vardir, user_id, "calendars.cfg"))
 
 
 class EventsConfigFile(ConfigFile):
@@ -670,4 +697,4 @@ class EventsConfigFile(ConfigFile):
         :param user_id: user ID as string
         :param cal_id: ID of the calendar
         """
-        super().__init__(os.path.join(vardir, user_id, cal_id, 'events.cfg'))
+        super().__init__(os.path.join(vardir, user_id, cal_id, "events.cfg"))

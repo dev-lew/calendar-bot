@@ -1,0 +1,13 @@
+[project]
+name = "calendar-bot"
+version = "0.1.0"
+description = "Telegram bot to post events notifications from calendars "
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "icalendar>=7.0.1",
+    "python-dateutil>=2.9.0.post0",
+    "python-telegram-bot[job-queue]>=22.6",
+    "pytz>=2025.2",
+    "recurring-ical-events>=3.8.1",
+]

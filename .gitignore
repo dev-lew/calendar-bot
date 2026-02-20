@@ -3,10 +3,12 @@
 
 *.retry
 
-var/*
+data/*
 
 ansible/group_vars/*.yml
 calbot.cfg
 
 .python-version
 bak/*
+
+__pycache__/
