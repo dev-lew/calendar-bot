@@ -16,19 +16,24 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Calendar Bot.  If not, see http://www.gnu.org/licenses/.
+# -*- coding: utf-8 -*-
 
 import logging
 
-from telegram.ext import ConversationHandler
-from telegram.ext import CommandHandler
-from telegram.ext import MessageHandler
-from telegram.ext import Filters
+from telegram import Update
+from telegram.ext import (
+    ConversationHandler,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
 from calbot.processing import update_calendar
 
-__all__ = ['create_handler']
+__all__ = ["create_handler"]
 
-logger = logging.getLogger('commands.add')
+logger = logging.getLogger("commands.add")
 
 ENTERING_URL = 0
 ENTERING_CHANNEL = 1
@@ -38,71 +43,107 @@ END = ConversationHandler.END
 def create_handler(config):
     """
     Creates handler for /add command.
-    :return: ConversationHandler
     """
 
-    def add_calendar_with_config(bot, update, chat_data):
-        return add_calendar(bot, update, chat_data, config)
+    async def add_calendar_with_config(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        return await add_calendar(update, context, config)
 
     return ConversationHandler(
-        entry_points=[CommandHandler('add', start)],
+        entry_points=[CommandHandler("add", start)],
         states={
-            ENTERING_URL: [MessageHandler(Filters.text, enter_url, pass_chat_data=True)],
-            ENTERING_CHANNEL: [MessageHandler(
-                Filters.text, add_calendar_with_config, pass_chat_data=True)]
+            ENTERING_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_url)],
+            ENTERING_CHANNEL: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    add_calendar_with_config,
+                )
+            ],
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=True
+        fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True,
     )
 
 
-def start(bot, update):
-    message = update.message
-    user_id = str(message.chat_id)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_chat.id)
+
     try:
-        message.reply_text("You're going to add a new calendar.\nEnter an URL of iCal file or /cancel")
+        await update.message.reply_text(
+            "You're going to add a new calendar.\nEnter an URL of iCal file or /cancel"
+        )
         return ENTERING_URL
     except Exception:
-        logger.error('Failed to send reply to user %s', user_id, exc_info=True)
+        logger.error("Failed to send reply to user %s", user_id, exc_info=True)
         return END
 
 
-def enter_url(bot, update, chat_data):
-    message = update.message
-    user_id = str(message.chat_id)
+async def enter_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_chat.id)
+
     try:
-        chat_data['calendar_url'] = message.text.strip()
-        message.reply_text('Enter a channel name or /cancel.\nChannel name should start with @.')
+        context.chat_data["calendar_url"] = update.message.text.strip()
+
+        await update.message.reply_text(
+            "Enter a channel name or /cancel.\nChannel name should start with @."
+        )
         return ENTERING_CHANNEL
     except Exception:
-        logger.error('Failed to send reply to user %s', user_id, exc_info=True)
+        logger.error("Failed to send reply to user %s", user_id, exc_info=True)
         return END
 
 
-def add_calendar(bot, update, chat_data, config):
-    message = update.message
-    user_id = str(message.chat_id)
-    url = chat_data['calendar_url']
+async def add_calendar(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config,
+):
+    user_id = str(update.effective_chat.id)
+    url = context.chat_data.get("calendar_url")
+
     try:
-        channel_id = message.text.strip()
+        channel_id = update.message.text.strip()
+
         calendar = config.add_calendar(user_id, url, channel_id)
-        message.reply_text(
-            'The new calendar is queued for verification.\nWait for messages here and in the %s.' % channel_id)
-        update_calendar(bot, calendar)
+
+        await update.message.reply_text(
+            "The new calendar is queued for verification.\n"
+            f"Wait for messages here and in the {channel_id}."
+        )
+
+        # Trigger immediate verification
+        await update_calendar(context, calendar)
+
     except Exception as e:
-        logger.warning('Failed to add calendar for user %s', user_id, exc_info=True)
+        logger.warning(
+            "Failed to add calendar for user %s",
+            user_id,
+            exc_info=True,
+        )
+
         try:
-            message.reply_text('Failed to add calendar:\n%s' % e)
+            await update.message.reply_text(f"Failed to add calendar:\n{e}")
         except Exception:
-            logger.error('Failed to send reply to user %s', user_id, exc_info=True)
+            logger.error(
+                "Failed to send reply to user %s",
+                user_id,
+                exc_info=True,
+            )
+
     return END
 
 
-def cancel(bot, update):
-    message = update.message
-    user_id = str(message.chat_id)
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_chat.id)
+
     try:
-        message.reply_text('Cancelled.')
+        await update.message.reply_text("Cancelled.")
     except Exception:
-        logger.error('Failed to send reply to user %s', user_id, exc_info=True)
+        logger.error(
+            "Failed to send reply to user %s",
+            user_id,
+            exc_info=True,
+        )
+
     return END

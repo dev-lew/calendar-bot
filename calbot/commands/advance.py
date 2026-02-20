@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Copyright 2017 Denis Nelubin.
+# Copyright 2026 dev-lew.
 #
 # This file is part of Calendar Bot.
 #
@@ -16,98 +17,140 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Calendar Bot.  If not, see http://www.gnu.org/licenses/.
+# -*- coding: utf-8 -*-
 
 import logging
 
-from telegram.ext import ConversationHandler
-from telegram.ext import CommandHandler
-from telegram.ext import MessageHandler
-from telegram.ext import Filters
+from telegram import Update
+from telegram.ext import (
+    ConversationHandler,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
-__all__ = ['create_handler']
+__all__ = ["create_handler"]
 
-logger = logging.getLogger('commands.advance')
+logger = logging.getLogger("commands.advance")
 
 SETTING = 0
 END = ConversationHandler.END
 
 
 def create_handler(config):
-    """
-    Creates handler for /advance command.
-    :return: ConversationHandler
-    """
+    async def get_advance_with_config(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        return await get_advance(update, context, config)
 
-    def get_advance_with_config(bot, update):
-        return get_advance(bot, update, config)
+    async def set_advance_with_config(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        return await set_advance(update, context, config)
 
-    def set_advance_with_config(bot, update):
-        return set_advance(bot, update, config)
-
-    def cancel_with_config(bot, update):
-        return cancel(bot, update, config)
+    async def cancel_with_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        return await cancel(update, context, config)
 
     return ConversationHandler(
-        entry_points=[CommandHandler('advance', get_advance_with_config)],
+        entry_points=[CommandHandler("advance", get_advance_with_config)],
         states={
-            SETTING: [MessageHandler(Filters.text, set_advance_with_config)],
+            SETTING: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    set_advance_with_config,
+                )
+            ],
         },
-        fallbacks=[CommandHandler('cancel', cancel_with_config)],
-        allow_reentry=True
+        fallbacks=[CommandHandler("cancel", cancel_with_config)],
+        allow_reentry=True,
     )
 
 
-def get_advance(bot, update, config):
-    message = update.message
-    user_id = str(message.chat_id)
+async def get_advance(update: Update, context: ContextTypes.DEFAULT_TYPE, config):
+    user_id = str(update.effective_chat.id)
+
     try:
         user_config = config.load_user(user_id)
-        text = 'Events are notified %s hours in advance.\n\n' \
-               'Type how many hours in advance events should be notified. ' \
-               'Several intervals can be entered separated by space.\n\n' \
-               'Example:\n48 24 12 6\n\n' \
-               'Type /cancel to cancel update.' % (
-                   ', '.join(map(str, user_config.advance)),
-               )
-        message.reply_text(text)
+
+        text = (
+            f"Events are notified "
+            f"{', '.join(map(str, user_config.advance))} hours in advance.\n\n"
+            "Type how many hours in advance events should be notified. "
+            "Several intervals can be entered separated by space.\n\n"
+            "Example:\n48 24 12 6\n\n"
+            "Type /cancel to cancel update."
+        )
+
+        await update.message.reply_text(text)
         return SETTING
+
     except Exception:
-        logger.error('Failed to send reply to user %s', user_id, exc_info=True)
+        logger.error(
+            "Failed to send reply to user %s",
+            user_id,
+            exc_info=True,
+        )
         return END
 
 
-def set_advance(bot, update, config):
-    message = update.message
-    user_id = str(message.chat_id)
+async def set_advance(update: Update, context: ContextTypes.DEFAULT_TYPE, config):
+    user_id = str(update.effective_chat.id)
+
     try:
         user_config = config.load_user(user_id)
-        hours = message.text.split()
+
+        hours = update.message.text.split()
         user_config.set_advance(hours)
-        text = 'Advance hours are updated.\nEvents will be notified %s hours in advance.' % (
-            ', '.join(map(str, user_config.advance)),
+
+        text = (
+            "Advance hours are updated.\n"
+            f"Events will be notified "
+            f"{', '.join(map(str, user_config.advance))} hours in advance."
         )
-        message.reply_text(text)
+
+        await update.message.reply_text(text)
         return END
+
     except Exception as e:
-        logger.warning('Failed to update advance to for user %s', user_id, exc_info=True)
-        text = 'Failed to update advance hours:\n%s' % e
+        logger.warning(
+            "Failed to update advance for user %s",
+            user_id,
+            exc_info=True,
+        )
+
         try:
-            message.reply_text(text)
-            message.reply_text('Try again or /cancel')
+            await update.message.reply_text(f"Failed to update advance hours:\n{e}")
+            await update.message.reply_text("Try again or /cancel")
         except Exception:
-            logger.error('Failed to send reply to user %s', user_id, exc_info=True)
+            logger.error(
+                "Failed to send reply to user %s",
+                user_id,
+                exc_info=True,
+            )
+
         return SETTING
 
 
-def cancel(bot, update, config):
-    message = update.message
-    user_id = str(message.chat_id)
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE, config):
+    user_id = str(update.effective_chat.id)
+
     try:
         user_config = config.load_user(user_id)
-        text = 'Cancelled.\nEvents will be notified %s hours in advance.' % (
-            ', '.join(map(str, user_config.advance)),
+
+        text = (
+            "Cancelled.\n"
+            f"Events will be notified "
+            f"{', '.join(map(str, user_config.advance))} hours in advance."
         )
-        message.reply_text(text)
+
+        await update.message.reply_text(text)
+
     except Exception:
-        logger.error('Failed to send reply to user %s', user_id, exc_info=True)
+        logger.error(
+            "Failed to send reply to user %s",
+            user_id,
+            exc_info=True,
+        )
+
     return END

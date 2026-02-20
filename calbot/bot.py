@@ -16,163 +16,120 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Calendar Bot.  If not, see http://www.gnu.org/licenses/.
+# -*- coding: utf-8 -*-
 
 import logging
+from functools import partial
 
-from telegram.ext import CommandHandler
-from telegram.ext import Filters
-from telegram.ext import MessageHandler
-from telegram.ext import Updater
+from telegram import Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
 from calbot import stats
 from calbot.commands import add as add_command
 from calbot.commands import cal as cal_command
 from calbot.commands import format as format_command
-from calbot.commands import lang as lang_command
 from calbot.commands import advance as advance_command
 from calbot.processing import update_calendars_job
 
-__all__ = ['run_bot']
+__all__ = ["run_bot"]
 
-GREETING = '''Hello, I'm calendar bot, please give me some commands.
+GREETING = """Hello, I'm calendar bot, please give me some commands.
 /add — add new iCal to be sent to a channel
 /list — see all configured calendars
 /format — get and set a calendar event formatting, use {title}, {date}, {time}, {location} and {description} variables
-/lang — get and set language to print the event, may affect the week day name
 /advance — get and set calendar events advance, i.e. how many hours before the event to publish it
-'''
+"""
 
-# logging.basicConfig(level=logging.DEBUG,
-#                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-logger = logging.getLogger('bot')
+logger = logging.getLogger("bot")
 
 
 def run_bot(config):
-    """
-    Starts the bot
-    :param config: main bot configuration
-    :return: None
-    """
-    updater = Updater(config.token)
+    application = Application.builder().token(config.token).build()
 
-    dispatcher = updater.dispatcher
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", start))
 
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(CommandHandler('help', start))
+    application.add_handler(add_command.create_handler(config))
 
-    dispatcher.add_handler(add_command.create_handler(config))
+    application.add_handler(
+        CommandHandler("list", partial(list_calendars, config=config))
+    )
 
-    def list_calendars_from_config(bot, update):
-        list_calendars(bot, update, config)
-    dispatcher.add_handler(CommandHandler('list', list_calendars_from_config))
+    application.add_handler(cal_command.create_handler(config))
+    application.add_handler(format_command.create_handler(config))
+    application.add_handler(advance_command.create_handler(config))
 
-    dispatcher.add_handler(cal_command.create_handler(config))
-    dispatcher.add_handler(format_command.create_handler(config))
-    dispatcher.add_handler(lang_command.create_handler(config))
-    dispatcher.add_handler(advance_command.create_handler(config))
+    application.add_handler(CommandHandler("stats", partial(get_stats, config=config)))
 
-    def get_stats_with_config(bot, update):
-        get_stats(bot, update, config)
-    dispatcher.add_handler(CommandHandler('stats', get_stats_with_config))
+    application.add_handler(CommandHandler("cancel", cancel))
+    application.add_handler(MessageHandler(filters.COMMAND, unknown))
 
-    dispatcher.add_handler(CommandHandler('cancel', cancel))
-    dispatcher.add_handler(MessageHandler(Filters.command, unknown))
+    application.add_error_handler(error)
 
-    dispatcher.add_error_handler(error)
+    # Job queue
+    application.job_queue.run_repeating(
+        update_calendars_job,
+        interval=config.interval,
+        first=0,
+        data=config,
+    )
 
     if config.webhook:
-        webhook_url = 'https://%s/%s' % (config.domain, config.token)
-        updater.start_webhook(listen=config.listen,
-                              port=config.port,
-                              url_path=config.token,
-                              webhook_url=webhook_url,
-                              bootstrap_retries=config.bootstrap_retries)
-        logger.info('Started webhook on %s:%s' % (config.listen, config.port))
-        updater.bot.set_webhook(webhook_url)
-        logger.info('Set webhook to %s' % webhook_url)
+        webhook_url = f"https://{config.domain}/{config.token}"
+
+        application.run_webhook(
+            listen=config.listen,
+            port=config.port,
+            url_path=config.token,
+            webhook_url=webhook_url,
+        )
+
+        logger.info("Started webhook on %s:%s", config.listen, config.port)
+        logger.info("Set webhook to %s", webhook_url)
+
     else:
-        updater.start_polling(clean=False,
-                              poll_interval=config.poll_interval,
-                              timeout=config.timeout,
-                              read_latency=config.read_latency,
-                              bootstrap_retries=config.bootstrap_retries,
-                              )
-        logger.info('Started polling')
-
-    updater.job_queue.run_repeating(update_calendars_job, config.interval, first=0, context=config)
-
-    updater.idle()
+        application.run_polling()
+        logger.info("Started polling")
 
 
-def start(bot, update):
-    """
-    /start or /help command handler. Prints greeting message.
-    :param bot: Bot instance
-    :param update: Update instance
-    :return: None
-    """
-    logger.info('Started from %s', update.message.chat_id)
-    bot.sendMessage(chat_id=update.message.chat_id, text=GREETING)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Started from %s", update.effective_chat.id)
+    await update.message.reply_text(GREETING)
 
 
-def list_calendars(bot, update, config):
-    """
-    /list command handler. Prints the list of all calendars configured for the user.
-    :param bot: Bot instance
-    :param update: Update instance
-    :param config: Config instance to read list of user's calendars
-    :return: None
-    """
-    message = update.message
-    user_id = str(message.chat_id)
-    text = 'ID\tNAME\tCHANNEL\n'
+async def list_calendars(update: Update, context: ContextTypes.DEFAULT_TYPE, config):
+    user_id = str(update.effective_chat.id)
+
+    text = "ID\tNAME\tCHANNEL\n"
     for calendar in config.user_calendars(user_id):
-        text += '/cal%s\t%s\t%s%s\n' % (calendar.id, calendar.name, calendar.channel_id,
-                                        ('' if calendar.enabled else '\tDISABLED'))
-    bot.sendMessage(chat_id=user_id, text=text)
+        text += "/cal%s\t%s\t%s%s\n" % (
+            calendar.id,
+            calendar.name,
+            calendar.channel_id,
+            ("" if calendar.enabled else "\tDISABLED"),
+        )
+
+    await update.message.reply_text(text)
 
 
-def get_stats(bot, update, config):
-    """
-    /stats command handler.
-    Prints the current known statistics.
-    :param bot: Bot instance
-    :param update: Update instance
-    :param config: Config instance
-    :return: None
-    """
-    message = update.message
+async def get_stats(update: Update, context: ContextTypes.DEFAULT_TYPE, config):
     text = str(stats.get_stats(config))
-    bot.sendMessage(chat_id=message.chat_id, text=text)
+    await update.message.reply_text(text)
 
 
-def cancel(bot, update):
-    """
-    Handler for /cancel command. Prints error message.
-    :param bot: Bot instance
-    :param update: Update instance
-    :return: None
-    """
-    bot.sendMessage(chat_id=update.message.chat_id, text="Sorry, there's nothing to cancel.")
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Sorry, there's nothing to cancel.")
 
 
-def unknown(bot, update):
-    """
-    Handler for unknown command. Prints error message.
-    :param bot: Bot instance
-    :param update: Update instance
-    :return: None
-    """
-    bot.sendMessage(chat_id=update.message.chat_id, text="Sorry, I don't understand this command.")
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Sorry, I don't understand this command.")
 
 
-def error(bot, update, error):
-    """
-    Error handler. Prints error message.
-    :param bot: Bot instance
-    :param update: Update instance
-    :param error: the error
-    :return: None
-    """
-    logger.warning('Update "%s" caused error "%s"' % (update, error))
+async def error(update: object, context: ContextTypes.DEFAULT_TYPE):
+    logger.warning('Update "%s" caused error "%s"', update, context.error)
